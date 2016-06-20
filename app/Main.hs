@@ -5,6 +5,7 @@ import Reflex.Dom
 import Reflex.Dom.Contrib.Widgets.DynamicList
 import qualified Data.Map as Map
 import Data.Monoid
+import Reflex.Dom.Contrib.Widgets.Modal
 
 app :: MonadWidget t m => m ()
 app = do
@@ -38,7 +39,7 @@ addButton label = do
 
 delButton :: MonadWidget t m => m (Event t ())
 delButton = do
-  (e, _) <- elAttr' "i" (  "class" =: "fa fa-remove text-danger"
+  (e, _) <- elAttr' "i" (  "class" =: "fa fa-remove text-danger pull-right"
                         <> "style" =: "font-size: 24px; vertical-align: middle"
                         ) blank
   return $ domEvent Click e
@@ -65,6 +66,22 @@ bootTable = do
                         ) blank
 
   return ()
+
+confirmModal :: MonadWidget t m => m (Event t (Either e a), Event t ())
+confirmModal = mkModalBody (const never) modalFooter body
+    where
+      body = el "div" (text "An 'el' should be able to be a Dynamic")
+
+modalFooter :: MonadWidget t m => Dynamic t (Either e a) -> m (Event t (), Event t ())
+modalFooter _ = do
+  (e1, _) <- elAttr' "button" (  "type" =: "button"
+                              <> "class" =: "btn btn-success pull-left"
+                              ) blank
+  (e2, _) <- elAttr' "button" (  "type" =: "button"
+                              <> "class" =: "btn btn-danger pull-right"
+                              ) blank
+  
+  return (domEvent Click e1, domEvent Click e2)
 
 row :: MonadWidget t1 m =>
        t -> String -> Event t1 String -> m ((), Event t1())
