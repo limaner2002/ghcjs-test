@@ -1,4 +1,6 @@
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE JavaScriptFFI #-}
+-- {-# LANGUAGE QuasiQuotes #-}
 
 import Reflex
 import Reflex.Dom
@@ -6,6 +8,30 @@ import Reflex.Dom.Contrib.Widgets.DynamicList
 import qualified Data.Map as Map
 import Data.Monoid
 import Reflex.Dom.Contrib.Widgets.Modal
+import GHCJS.DOM.Types hiding (Event)
+import GHCJS.DOM.FileReader
+import GHCJS.DOM.EventM
+import GHCJS.Marshal
+import GHCJS.Types
+import Reflex.Host.Class
+import Control.Monad.Trans
+import Data.Dependent.Sum
+import Control.Monad.Identity
+import Data.Maybe
+import Data.List
+
+foreign import javascript unsafe
+            "var x = document.getElementById('fileUpload');\
+             \   files = []\
+             \ if ('files' in x) {\
+             \     if (x.files.length > $1){\
+             \         $r = x.files[$1].name \
+             \     }\
+             \ else { $r = 'index too big!' }\
+             \ }" getFileName :: Int -> JSString
+
+foreign import javascript unsafe "var x = 'Here it is!';\
+                                  \ $r = x;" testFFI :: JSString
 
 app :: MonadWidget t m => m ()
 app = do
@@ -58,19 +84,39 @@ bootTable :: MonadWidget t m => m ()
 bootTable = do
   rec _ <- elAttr "table" ("class" =: "table table-striped") $ el "tbody" $ dynamicList row snd (const never) ("New plugin!" <$ addItem) ["Magic Deploy", "Business Charts", "Get All Apps"]
       addItem <- addButton "Add Item"
-  elAttr "label" ("class" =: "btn btn-default btn-file") $ do
-         text "Browse"
-         elAttr "input" (  "type" =: "file"
-                        <> "multiple" =: "multiple"
-                        <> "style" =: "display: none"
-                        ) blank
+  el "br" blank
 
-  return ()
+  filesDyn <- elAttr "label" ("class" =: "btn btn-default btn-file") $ do
+      text "Browse"
+      value <$> fileInput (FileInputConfig $ constDyn ("id" =: "fileUpload" <> "multiple" =: "multiple" <> "style" =: "display: none"))
 
-confirmModal :: MonadWidget t m => m (Event t (Either e a), Event t ())
-confirmModal = mkModalBody (const never) modalFooter body
+  el "div" $ do
+      dyn =<< mapDyn (displayFileNames . getFileNames) filesDyn
+      blank
+
+-- confirmModal :: MonadWidget t m => m (Event t (Either e a), Event t ())
+-- confirmModal = mkModalBody (const never) modalFooter body
+--     where
+--       body = el "div" (text "An 'el' should be able to be a Dynamic")
+
+showUpdated :: [File] -> String
+showUpdated [] = mempty
+showUpdated files = show (length files) <> " files chosen!"
+
+displayFileNames :: MonadWidget t m => [JSString] -> m ()
+displayFileNames fNames = do
+  el "ul" $
+     mapM_ (el "li" . text . showFName) fNames
+
+showFName :: JSString -> String
+showFName = show
+
+getFileNames :: [File] -> [JSString]
+getFileNames [] = mempty
+getFileNames files = go $ (length files) - 1
     where
-      body = el "div" (text "An 'el' should be able to be a Dynamic")
+      go (-1) = []
+      go n = getFileName n : go (n - 1)
 
 modalFooter :: MonadWidget t m => Dynamic t (Either e a) -> m (Event t (), Event t ())
 modalFooter _ = do
@@ -92,7 +138,8 @@ row _ v _ = do
     return (e, del)
 
 main :: IO ()
-main = mainWidgetWithHead (fontAwesome >> bootstrap) $ elAttr "div" ("style" =: "padding: 25px") bootTable
+main = do
+  mainWidgetWithHead (fontAwesome >> bootstrap) $ elAttr "div" ("style" =: "padding: 25px") bootTable
 
 
 -- import Safe (readMay)
@@ -241,3 +288,50 @@ fontAwesome = elAttr "link" (  "rel" =: "stylesheet"
 --            collapsibleList "US Dev 2" $ do
 --              el "li" (text "Dev2 First")
 --              el "li" (text "Dev2 Second")
+
+dataURLFileReader :: (MonadWidget t m) => Event t File -> m (Event t String)
+dataURLFileReader request =
+  do fileReader <- liftIO newFileReader
+     let getResultString :: FileReader -> IO (Maybe String)
+         getResultString fr = do v <- getResult fr
+                                 s <- fromJSVal v
+                                 return (fmap fromJSString s)
+         handler :: (Maybe String -> IO ()) -> EventM FileReader UIEvent ()
+         handler k = liftIO $ k =<< getResultString fileReader
+     performEvent_ (fmap (\f -> readAsDataURL fileReader (Just f)) request)
+     e <- buildEvent (on fileReader load . handler)
+     return (fmapMaybe id e)
+
+askPostEvent :: MonadWidget t m => m (EventTrigger t a -> a -> IO ())
+askPostEvent = do
+  postGui <- askPostGui
+  runWithActions <- askRunWithActions
+  return (\t a -> postGui $ runWithActions [t :=> Identity a])
+
+
+buildEvent :: (MonadWidget t m)
+           => ((a -> IO ()) -> IO (IO ()))
+           -> m (Event t a)
+buildEvent install = do
+  postEvent <- askPostEvent
+  newEventWithTrigger (install . postEvent)
+
+header :: MonadWidget t m => m ()
+header = do
+  el "strong" $ do
+    linkNewTab "https://github.com/reflex-frp/reflex-dom" "Reflex.Dom"
+    text " FileInput test page"
+  el "p" $ do
+    text "Select an image file."
+
+footer :: MonadWidget t m => m ()
+footer = do
+  el "hr" $ return ()
+  el "p" $ do
+    text "The code for this example can be found in the "
+    linkNewTab "https://github.com/reflex-frp/reflex-examples" "Reflex Examples"
+    text " repo."
+
+linkNewTab :: MonadWidget t m => String -> String -> m ()
+linkNewTab href s =
+  elAttr "a" ("href" =: href <> "target" =: "_blank") $ text s
