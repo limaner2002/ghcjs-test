@@ -1,9 +1,9 @@
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE JavaScriptFFI #-}
--- {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 import Reflex
-import Reflex.Dom
+import Reflex.Dom hiding (button)
 import Reflex.Dom.Contrib.Widgets.DynamicList
 import qualified Data.Map as Map
 import Data.Monoid
@@ -20,18 +20,12 @@ import Control.Monad.Identity
 import Data.Maybe
 import Data.List
 
-foreign import javascript unsafe
-            "var x = document.getElementById('fileUpload');\
-             \   files = []\
-             \ if ('files' in x) {\
-             \     if (x.files.length > $1){\
-             \         $r = x.files[$1].name \
-             \     }\
-             \ else { $r = 'index too big!' }\
-             \ }" getFileName :: Int -> JSString
+import Bootstrap
+import FileUploader
+import Common
 
-foreign import javascript unsafe "var x = 'Here it is!';\
-                                  \ $r = x;" testFFI :: JSString
+toComponent :: Component B a => a -> CompBackend B a
+toComponent comp = wrapComponent comp
 
 app :: MonadWidget t m => m ()
 app = do
@@ -86,13 +80,19 @@ bootTable = do
       addItem <- addButton "Add Item"
   el "br" blank
 
-  filesDyn <- elAttr "label" ("class" =: "btn btn-default btn-file") $ do
-      text "Browse"
-      value <$> fileInput (FileInputConfig $ constDyn ("id" =: "fileUpload" <> "multiple" =: "multiple" <> "style" =: "display: none"))
+  -- bootstrapFileInput "Add Files"
+
+  uploader
 
   el "div" $ do
-      dyn =<< mapDyn (displayFileNames . getFileNames) filesDyn
+      renderComponent (toComponent BtnPrimary) "submit"
       blank
+
+  let head = fmap text ["First", "Second"]
+      body = (fmap . fmap) text [["hello", "world"], ["How are", "you?"]]
+
+  renderTable (toComponent TblStriped) head body
+  blank
 
 -- confirmModal :: MonadWidget t m => m (Event t (Either e a), Event t ())
 -- confirmModal = mkModalBody (const never) modalFooter body
@@ -102,21 +102,6 @@ bootTable = do
 showUpdated :: [File] -> String
 showUpdated [] = mempty
 showUpdated files = show (length files) <> " files chosen!"
-
-displayFileNames :: MonadWidget t m => [JSString] -> m ()
-displayFileNames fNames = do
-  el "ul" $
-     mapM_ (el "li" . text . showFName) fNames
-
-showFName :: JSString -> String
-showFName = show
-
-getFileNames :: [File] -> [JSString]
-getFileNames [] = mempty
-getFileNames files = go $ (length files) - 1
-    where
-      go (-1) = []
-      go n = getFileName n : go (n - 1)
 
 modalFooter :: MonadWidget t m => Dynamic t (Either e a) -> m (Event t (), Event t ())
 modalFooter _ = do
@@ -139,7 +124,7 @@ row _ v _ = do
 
 main :: IO ()
 main = do
-  mainWidgetWithHead (fontAwesome >> bootstrap) $ elAttr "div" ("style" =: "padding: 25px") bootTable
+  mainWidgetWithHead (fontAwesome >> bootstrapHeader) $ elAttr "div" ("style" =: "padding: 25px") bootTable
 
 
 -- import Safe (readMay)
@@ -184,13 +169,6 @@ main = do
 -- --                  "*" -> (*)
 -- --                  "/" -> (/)
 -- --                  _ -> (+)
-
-bootstrap :: (MonadWidget t m) => m ()
-bootstrap = elAttr "link" (Map.fromList [ ("rel", "stylesheet")
-                                        , ("href", "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css")
-                                        , ("type", "text/css")
-                                        ]
-                          ) blank
 
 fontAwesome :: (MonadWidget t m) => m ()
 fontAwesome = elAttr "link" (  "rel" =: "stylesheet"
