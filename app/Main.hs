@@ -20,7 +20,7 @@ import Control.Monad.Identity
 import Data.Maybe
 import Data.List
 
-import Bootstrap
+import PureCSS
 import FileUploader
 import Common
 
@@ -91,7 +91,7 @@ bootTable = do
   let head = fmap text ["First", "Second"]
       body = (fmap . fmap) text [["hello", "world"], ["How are", "you?"]]
 
-  renderTable (toComponent TblStriped) head body
+  renderTable (toComponent TblHover) head body
   blank
 
 -- confirmModal :: MonadWidget t m => m (Event t (Either e a), Event t ())
@@ -124,7 +124,7 @@ row _ v _ = do
 
 main :: IO ()
 main = do
-  mainWidgetWithHead (fontAwesome >> bootstrapHeader) $ elAttr "div" ("style" =: "padding: 25px") bootTable
+  mainWidgetWithHead (fontAwesome >> header) $ elAttr "div" ("style" =: "padding: 25px") bootTable
 
 
 -- import Safe (readMay)

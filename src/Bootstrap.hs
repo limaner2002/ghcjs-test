@@ -56,8 +56,8 @@ bootstrapFileInput label =
       text label
       fileInput (FileInputConfig $ constDyn ("id" =: "fileUpload" <> "multiple" =: "multiple" <> "style" =: "display: none"))
 
-bootstrapHeader :: (MonadWidget t m) => m ()
-bootstrapHeader = elAttr "link" (Map.fromList [ ("rel", "stylesheet")
+header :: (MonadWidget t m) => m ()
+header = elAttr "link" (Map.fromList [ ("rel", "stylesheet")
                                               , ("href", "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css")
                                               , ("type", "text/css")
                                               ]

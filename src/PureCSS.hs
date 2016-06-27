@@ -50,4 +50,9 @@ instance Component PureCSS TblClass where
           unTblClass TblHover = undefined
           unTblClass TblCondensed = undefined
 
-    renderComponent btn label = fail "Not yet implemented"
+header :: (MonadWidget t m) => m ()
+header = elAttr "link" (Map.fromList [ ("rel", "stylesheet")
+                                     , ("href", "http://yui.yahooapis.com/pure/0.6.0/pure-min.css")
+                                     , ("type", "text/css")
+                                     ]
+                       ) blank
