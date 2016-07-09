@@ -3,7 +3,7 @@
 
 module Bootstrap
     ( bootstrapFileInput
-    , bootstrapHeader
+    , header
     , B
     ) where
 

@@ -53,7 +53,7 @@ data TblClass = TblDefault
               | TblCondensed
 
 class Table b where
-    renderTable :: (Traversable t, MonadWidget t1 m) => CompBackend b TblClass -> t (m a) -> t (t (m a)) -> m ()
+    renderTable :: (Traversable t, MonadWidget t1 m) => CompBackend b TblClass -> t (m a) -> t (t (m c)) -> m ()
 
 -- Takes in a collection of cells and displays them
 dispCells :: (Traversable t, MonadWidget t1 m) => String -> t (m b) -> m (t b)
