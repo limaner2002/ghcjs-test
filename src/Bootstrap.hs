@@ -44,10 +44,10 @@ instance Table Bootstrap where
           comp = getComponent tbl
           renderIt = do
             elAttr "table" attrs $ do
-                el "thead" $ dispCells "th" header
-                el "tbody" $ do
-                    mapM (dispCells "td") rows
-                    blank
+                head <- el "thead" $ dispCells "th" header
+                body <- el "tbody" $ do
+                          mapM (dispCells "td") rows
+                return (head, body)
           attrs = ("class" =: ("table" <> " " <> comp))
 
 bootstrapFileInput :: MonadWidget t m => String -> m (FileInput t)

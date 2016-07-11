@@ -32,9 +32,6 @@ data BtnClass = BtnPrimary
 data ButtonConfig = ButtonConfig (Map.Map String String)
   deriving Show
 
--- instance Default ButtonConfig where
---     def = ButtonConfig ("type" =: ("button" <> " " <> btnClass BtnDefault))
-
 button :: MonadWidget t m => String -> ButtonConfig -> m (Event t ())
 button label (ButtonConfig attrs) = do
     (e, _) <- elAttr' label attrs $ text label
@@ -53,10 +50,11 @@ data TblClass = TblDefault
               | TblCondensed
 
 class Table b where
-    renderTable :: (Traversable t, MonadWidget t1 m) => CompBackend b TblClass -> t (m a) -> t (t (m c)) -> m ()
+    renderTable :: (Traversable t, MonadWidget t1 m) => CompBackend b TblClass -> t (m a) -> t (t (m c)) -> m ((t a), (t (t c)))
 
 -- Takes in a collection of cells and displays them
 dispCells :: (Traversable t, MonadWidget t1 m) => String -> t (m b) -> m (t b)
-dispCells label cells = el "tr" $ mapM dispCell cells
+dispCells label cells = el "tr" $ x
     where
       dispCell = el label
+      x = sequence $ fmap dispCell cells
