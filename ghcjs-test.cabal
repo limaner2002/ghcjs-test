@@ -44,6 +44,7 @@ library
                      , FileUploader
                      , Common
                      , PureCSS
+                     , SortableTable
   build-depends:       base
                      , reflex
                      , reflex-dom
