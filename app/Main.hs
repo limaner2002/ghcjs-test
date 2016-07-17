@@ -7,83 +7,91 @@ import ClassyPrelude
 import Reflex
 import Reflex.Dom
 
-import Common
-import Bootstrap
--- import PureCSS
+-- import Common
+-- -- import Bootstrap
+import PureCSS
 
-toComponent :: Component B a => a -> CompBackend B a
-toComponent comp = wrapComponent comp
+-- toComponent :: Component B a => a -> CompBackend B a
+-- toComponent comp = wrapComponent comp
 
 fontAwesome :: (MonadWidget t m) => m ()
 fontAwesome = elAttr "link" (  "rel" =: "stylesheet"
                             <> "href" =: "font-awesome-4.6.3/css/font-awesome.css"
                             ) blank
 
-createItem :: MonadWidget t m => (Int, String) -> m (Event t Int)
-createItem (idx, item) = do
-  (e, _) <- el' "div" $ text item
+data Sorting = Ascending | Descending | NotSorted
+
+createSortHeadCell :: MonadWidget t m => (Int, String, Sorting) -> m (Event t Int)
+createSortHeadCell (idx, item, sorting) = do
+  (e, _) <- el' "div" $ do
+              text item
+              showArrow
+              el "span" blank
   return $ pushAlways (const (return idx)) $ domEvent Click e
 
--- dispSortedCol :: MonadHold t m => [Event t Int] -> m (Dynamic t Int)
--- dispSortedCol evts = do
---   el "div" $ text "Sorted by"
+showArrow :: MonadWidget t m => Sorting -> m ()
+showArrow Ascending = elAttr "i" ("class" =: "fa fa-long-arrow-down")
+showArrow Descending = elAttr "i" ("class" =: "fa fa-long-arrow-up")
+showArrow NotSorted = blank
 
---   d <- holdDyn 0 . leftmost $ evts
---   el "div" $ display d
---   return d
+thead :: MonadWidget t m => [String] -> [m (Event t Int)]
+thead cts = fmap createSortHeadCell $ zip3 [0..] cts $ repeat False
 
-thead :: MonadWidget t m => [m (Event t Int)]
-thead = fmap createItem $ zip [0..] ["First", "Second"]
+-- thead :: [String]
+-- thead = ["First", "Second"]
 
 tbody :: MonadWidget t m => [[Int]] -> [[m ()]]
 tbody contents = do
   (fmap . fmap) (text . show) contents
 
 bodyContents :: [[Int]]
-bodyContents = [[1, 3], [4, 2]]
+bodyContents = [ [1, 3]
+               , [4, 2]
+               , [7, 5]
+               , [4, 1]
+               , [1, 9]
+               , [2, 14]
+               , [13, 93]
+               ]
 
-dispTable :: MonadWidget t m => [[m c]] -> m ([Event t Int], [[c]])
-dispTable = renderTable (toComponent TblStriped) thead
+-- -- Takes in a collection of cells and displays them
+-- dispCells :: (Traversable t, MonadWidget t1 m) => String -> t (m b) -> m (t b)
+-- dispCells label cells = el "tr" $ mapM dispCell cells
+--     where
+--       dispCell = el label
 
--- dispTable' :: MonadWidget t m => Dynamic t [[Int]] -> m ([Event t Int], [[Int]])
--- dispTable' sorted = do
---   r <- mapDyn
+dispTable :: MonadWidget t m => m ()
+dispTable = elAttr "table" ("class" =: "pure-table pure-table-striped") $ do
+              evts <- el "thead" $ dispCells "th" thead
+              let leftEvent = leftmost evts
+
+              folded <- foldDyn (\idx (idxOld, revBool) -> case idx == idxOld of
+                                                             True -> (idx, not revBool)
+                                                             False -> (idx, False)
+                                ) (0, False) leftEvent
+
+              sorted <- mapDyn (\(idx, revBool) -> shouldReverse revBool $ sortTable idx) folded
+
+              el "tbody" $ 
+                 simpleList sorted (\x -> el "tr" $
+                                          simpleList x (\y -> el "td" $ dynText =<< mapDyn show y)
+                                   )
+              return ()      
 
 mainView :: MonadWidget t m => m ()
 mainView = do
-  (evts, _) <- dispTable $ tbody bodyContents
-  dynIdx <- holdDyn 0 $ leftmost evts
-  sorted <- mapDyn sortTable dynIdx
-  elAttr "table" ("class" =: "table table-striped") $ el "tbody" $ 
-     simpleList sorted (\x -> el "tr" $
-                           simpleList x (\y -> el "td" $ dynText =<< mapDyn show y)
-                       )
-  blank
-
-         -- clickE <- Reflex.Dom.button "Reverse it!"
-         -- reversed <- toggle False clickE
-         -- dyns <- mapDyn shouldReverse reversed
-         
-         -- simpleList dyns (\x -> el "li" $ dynText =<< mapDyn show x)
-         -- return ()
-  
+  dispTable
 
 sortTable :: Int -> [[Int]]
 sortTable idx = sortOn (flip indexEx idx) bodyContents
 
--- dynList :: MonadHold t m => [a] -> m (Dynamic t [a])
--- dynList =
-
 items :: [Int]
 items = [1,5,3,4]
 
-shouldReverse :: Bool -> [Int]
-shouldReverse False = items
-shouldReverse True = reverse items
+shouldReverse :: Bool -> [a] -> [a]
+shouldReverse False items = items
+shouldReverse True items = reverse items
 
 main :: IO ()
 main = mainWidgetWithHead (fontAwesome >> header) $ do
-         -- dispTable $ tbody bodyContents
-             mainView
-             
-         -- r <- mapDyn (dispTable . tbody) dn
+             dispTable

@@ -3,6 +3,7 @@
 
 module PureCSS
     ( B
+    , header
     ) where
 
 import Prelude ()
