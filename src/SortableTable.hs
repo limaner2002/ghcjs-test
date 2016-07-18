@@ -14,7 +14,6 @@ import Reflex.Dom
 
 type DispHead = forall a c m t. (MonoFoldable c, MonadWidget t m, Monoid a) => (a -> Element c -> m a) -> c -> m a
 type DispBody = forall a c m t. (MonoFoldable c, MonoFoldable (Element c), MonadWidget t m, Monoid a) => (a -> Element (Element c) -> m a) -> c -> m a
-type DispCell = forall a b m t. (MonadWidget t m, Monoid b) => a -> m b
 
 header :: [String]
 header = ["First", "Second"]
@@ -42,46 +41,47 @@ dispBody f cts = foldM (\_ -> dispTablePart f "tbody") mempty cts
 dispCell :: MonadWidget t m => String -> m ()
 dispCell content = el "th" $ text content
 
-dispCellEvt :: MonadWidget t m => (Int, String) -> m (Event t Int)
-dispCellEvt (idx, item) = do
-  (e, _) <- el' "th" $ text item
+dispCellEvt :: MonadWidget t m => (Int -> String -> m ()) -> (Int, String) -> m (Event t Int)
+dispCellEvt f (idx, item) = do
+  (e, _) <- el' "th" $ f idx item
   return $ pushAlways (const $ return idx) $ domEvent Click e
 
--- dispTable :: (MonoFoldable a, MonoFoldable b) => (a -> m c) -> (b -> m c) -> DispHead -> a -> DispBody -> b -> m c
--- dispTable dispCellHead dispCellBody dispHead head dispBody body =
---   elAttr "table" ("class" =: "pure-table pure-table-striped") $ do
---     dispHeader dispCellHead head
---     dispBody dispCellBody body
+handleSortUpdate :: Int -> (Int, Bool) -> (Int, Bool)
+handleSortUpdate idx (idxOld, revBool) =
+    case idx == idxOld of
+      True -> (idx, not revBool)
+      False -> (idx, False)
+
+dispDynamicBody :: (Show a, MonadWidget t m) => Dynamic t [[a]] -> m ()
+dispDynamicBody dynBody = simpleList dynBody dispRows >> blank
+    where
+      dispRows x = el "tr" $ simpleList x dispDynCell
+      dispDynCell x = el "td" $ dynText =<< mapDyn show x
 
 testHeader :: MonadWidget t m => m ()
 testHeader = dispHeader (\_ -> dispCell) header
 
-testHeaderEvt :: MonadWidget t m => m [Event t Int]
-testHeaderEvt = dispHeader dispCellEvts $ zip [0..] header
+testHeaderEvt :: MonadWidget t m => (Int -> String -> m ()) -> m [Event t Int]
+testHeaderEvt f = dispHeader dispCellEvts $ zip [0..] header
   where
     dispCellEvts evts x = do
-      r <- dispCellEvt x
+      r <- dispCellEvt f x
       return $ r : evts
 
+-- Maybe using attributes to display the sort arrow will work
 testTable :: MonadWidget t m => m ()
 testTable =
   elAttr "table" ("class" =: "pure-table pure-table-striped") $ do
-    evts <- testHeaderEvt
-    let leftEvent = leftmost evts
+    rec evts <- testHeaderEvt (\_ -> text)
 
-    folded <- foldDyn (\idx (idxOld, revBool) -> case idx == idxOld of
-                                                             True -> (idx, not revBool)
-                                                             False -> (idx, False)
-                                ) (0, False) leftEvent
+        let leftEvent = leftmost evts
+        folded <- foldDyn handleSortUpdate (0, False) leftEvent
 
-    sorted <- mapDyn (\(idx, revBool) -> shouldReverse revBool $ sortTable idx) folded
+        sorted <- mapDyn (\(idx, revBool) -> shouldReverse revBool $ sortTable idx) folded
 
-    el "tbody" $ 
-                 simpleList sorted (\x -> el "tr" $
-                                          simpleList x (\y -> el "td" $ dynText =<< mapDyn show y)
-                                   )
+        el "tbody" $ dispDynamicBody sorted
+
     blank
-    -- dispBody (\_ -> dispCell . show) bodyContents
 
 sortTable :: Int -> [[Int]]
 sortTable idx = sortOn (flip indexEx idx) bodyContents
